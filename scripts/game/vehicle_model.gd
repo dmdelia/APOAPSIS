@@ -19,16 +19,20 @@ func configure(part_stack: Array[String]) -> void:
 func _rebuild_stages() -> void:
 	stages.clear()
 	var stage: Dictionary = _empty_stage()
+
 	for part_id: String in stack:
 		var part: Dictionary = PartCatalog.get_part(part_id)
 		if part.is_empty():
 			continue
+
 		var part_type: String = str(part.get("type", ""))
 		if part_type == "decoupler":
-			stage["dry_mass"] = float(stage["dry_mass"]) + float(part["dry_mass"])
+			stage["part_ids"].append(part_id)
+			stage["dry_mass"] = float(stage["dry_mass"]) + float(part.get("dry_mass", 0.0))
 			stages.append(stage)
 			stage = _empty_stage()
 			continue
+
 		stage["part_ids"].append(part_id)
 		stage["dry_mass"] = float(stage["dry_mass"]) + float(part.get("dry_mass", 0.0))
 		stage["fuel"] = float(stage["fuel"]) + float(part.get("fuel", 0.0))
@@ -36,7 +40,8 @@ func _rebuild_stages() -> void:
 		stage["radius"] = max(float(stage["radius"]), float(part.get("radius", 0.0)))
 		if part_type == "engine":
 			stage["engines"].append(part)
-	if not stage["part_ids"].is_empty() or float(stage["dry_mass"]) > 0.0:
+
+	if not stage["part_ids"].is_empty():
 		stages.append(stage)
 
 func _empty_stage() -> Dictionary:
@@ -49,12 +54,59 @@ func _empty_stage() -> Dictionary:
 		"engines": []
 	}
 
+func is_valid_vehicle() -> bool:
+	var has_command: bool = false
+	var has_engine: bool = false
+	var has_fuel: bool = false
+	for part_id: String in stack:
+		var part: Dictionary = PartCatalog.get_part(part_id)
+		var part_type: String = str(part.get("type", ""))
+		if part_type == "capsule":
+			has_command = true
+		elif part_type == "engine":
+			has_engine = true
+		elif part_type == "tank" and float(part.get("fuel", 0.0)) > 0.0:
+			has_fuel = true
+	return has_command and has_engine and has_fuel
+
+func validation_message() -> String:
+	if stack.is_empty():
+		return "Vehicle is empty"
+	var has_command: bool = false
+	var has_engine: bool = false
+	var has_fuel: bool = false
+	for part_id: String in stack:
+		var part: Dictionary = PartCatalog.get_part(part_id)
+		var part_type: String = str(part.get("type", ""))
+		has_command = has_command or part_type == "capsule"
+		has_engine = has_engine or part_type == "engine"
+		has_fuel = has_fuel or (part_type == "tank" and float(part.get("fuel", 0.0)) > 0.0)
+	if not has_command:
+		return "Add a command capsule"
+	if not has_engine:
+		return "Add at least one engine"
+	if not has_fuel:
+		return "Add a propellant tank"
+	return "Flight ready"
+
 func total_mass() -> float:
 	var mass: float = 0.0
 	for i: int in range(current_stage, stages.size()):
 		var stage: Dictionary = stages[i]
 		mass += float(stage["dry_mass"]) + float(stage["fuel"])
 	return max(mass, 1.0)
+
+func total_dry_mass() -> float:
+	var mass: float = 0.0
+	for i: int in range(current_stage, stages.size()):
+		mass += float(stages[i]["dry_mass"])
+	return mass
+
+func total_fuel() -> float:
+	var fuel: float = 0.0
+	for i: int in range(current_stage, stages.size()):
+		fuel += float(stages[i]["fuel"])
+	return fuel
 
 func current_fuel() -> float:
 	if current_stage >= stages.size():
@@ -82,18 +134,71 @@ func stage_count() -> int:
 func has_next_stage() -> bool:
 	return current_stage + 1 < stages.size()
 
+func active_part_ids() -> Array[String]:
+	var result: Array[String] = []
+	for i: int in range(current_stage, stages.size()):
+		for id_variant: Variant in stages[i]["part_ids"]:
+			var part_id: String = str(id_variant)
+			var part: Dictionary = PartCatalog.get_part(part_id)
+			if i == current_stage and str(part.get("type", "")) == "decoupler" and has_next_stage():
+				continue
+			result.append(part_id)
+	return result
+
+func current_stage_thrust(ambient_pressure: float = 101325.0) -> float:
+	if current_stage >= stages.size():
+		return 0.0
+	var pressure_ratio: float = clamp(ambient_pressure / 101325.0, 0.0, 1.0)
+	var thrust: float = 0.0
+	for engine_variant: Variant in stages[current_stage]["engines"]:
+		var engine: Dictionary = engine_variant
+		thrust += lerp(float(engine["thrust_vac"]), float(engine["thrust_sl"]), pressure_ratio)
+	return thrust
+
+func current_twr(ambient_pressure: float = 101325.0) -> float:
+	return current_stage_thrust(ambient_pressure) / max(total_mass() * G0, 0.001)
+
+func estimated_delta_v() -> float:
+	var total_dv: float = 0.0
+	var upper_mass: float = 0.0
+
+	for stage_index: int in range(stages.size() - 1, -1, -1):
+		var stage: Dictionary = stages[stage_index]
+		var stage_dry: float = float(stage["dry_mass"])
+		var stage_fuel: float = float(stage["fuel_capacity"])
+		var wet_mass: float = stage_dry + stage_fuel + upper_mass
+		var dry_mass_after_burn: float = stage_dry + upper_mass
+		var isp: float = _average_stage_isp(stage, true)
+		if stage_fuel > 0.0 and isp > 0.0 and wet_mass > dry_mass_after_burn:
+			total_dv += isp * G0 * log(wet_mass / dry_mass_after_burn)
+		upper_mass += stage_dry
+	return total_dv
+
+func _average_stage_isp(stage: Dictionary, vacuum: bool) -> float:
+	var engines: Array = stage["engines"]
+	if engines.is_empty():
+		return 0.0
+	var total: float = 0.0
+	for engine_variant: Variant in engines:
+		var engine: Dictionary = engine_variant
+		total += float(engine["isp_vac"] if vacuum else engine["isp_sl"])
+	return total / float(engines.size())
+
 func activate_or_stage() -> String:
 	if current_stage >= stages.size():
 		return "NO STAGE"
+
 	if not engines_armed:
 		engines_armed = true
 		if throttle <= 0.0:
 			throttle = 1.0
 		return "STAGE %d IGNITION" % (current_stage + 1)
+
 	if has_next_stage():
 		current_stage += 1
 		engines_armed = true
-		return "STAGE %d SEPARATION / IGNITION" % current_stage
+		return "STAGE %d SEPARATION / STAGE %d IGNITION" % [current_stage, current_stage + 1]
+
 	engines_armed = false
 	return "ENGINES SAFE"
 
@@ -134,10 +239,12 @@ func consume_and_get_thrust(dt: float, ambient_pressure: float) -> Dictionary:
 
 	var requested_propellant: float = total_flow * dt
 	var available_propellant: float = float(stage["fuel"])
+	var consumed: float = min(requested_propellant, available_propellant)
 	var scale: float = 1.0
-	if requested_propellant > available_propellant and requested_propellant > 0.0:
-		scale = available_propellant / requested_propellant
-	stage["fuel"] = max(0.0, available_propellant - requested_propellant)
+	if requested_propellant > 0.0:
+		scale = consumed / requested_propellant
+
+	stage["fuel"] = max(0.0, available_propellant - consumed)
 	stages[current_stage] = stage
 
 	if float(stage["fuel"]) <= 0.0001:
