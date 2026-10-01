@@ -7,7 +7,7 @@ on:
 
 jobs:
   export-windows:
-    name: Export Windows build
+    name: Test and export Windows build
     runs-on: ubuntu-latest
 
     steps:
@@ -22,6 +22,15 @@ jobs:
           relative_project_path: ./
           archive_output: true
           cache: true
+
+      - name: Headless runtime smoke test
+        run: |
+          set -o pipefail
+          /home/runner/.local/share/godot/godot_executable/Godot_v4.5.1-stable_linux.x86_64             --headless             --path .             --quit-after 180             2>&1 | tee /tmp/apoapsis-smoke.log
+          if grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid call|ERROR:" /tmp/apoapsis-smoke.log; then
+            echo "Runtime smoke test detected Godot errors."
+            exit 1
+          fi
 
       - name: Upload playable build
         uses: actions/upload-artifact@v4
