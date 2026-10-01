@@ -42,6 +42,24 @@ jobs:
           fi
           grep -q "APOAPSIS FLOW TEST PASSED" /tmp/apoapsis-flow.log
 
+      - name: Render regression screenshots
+        run: |
+          set -o pipefail
+          xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1             /home/runner/.local/share/godot/godot_executable/Godot_v4.5.1-stable_linux.x86_64             --path .             --rendering-method gl_compatibility             --script res://tests/render_capture.gd             2>&1 | tee /tmp/apoapsis-render.log
+          if grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid call|ERROR:" /tmp/apoapsis-render.log; then
+            echo "Render regression test detected Godot errors."
+            exit 1
+          fi
+          grep -q "APOAPSIS RENDER CAPTURE PASSED" /tmp/apoapsis-render.log
+
+      - name: Upload render captures
+        uses: actions/upload-artifact@v4
+        with:
+          name: APOAPSIS-Render-Captures
+          path: test-output/*.png
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload playable build
         uses: actions/upload-artifact@v4
         with:
