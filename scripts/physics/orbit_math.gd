@@ -4,28 +4,29 @@ extends RefCounted
 const MU_EARTH: float = 3.986004418e14
 const EARTH_RADIUS: float = 6378137.0
 
-static func gravity_acceleration(position: Vector3) -> Vector3:
+static func gravity_acceleration(position: DVec3) -> DVec3:
 	var radius: float = position.length()
 	if radius <= 1.0:
-		return Vector3.ZERO
-	return -position.normalized() * (MU_EARTH / (radius * radius))
+		return DVec3.new()
+	var factor: float = -MU_EARTH / (radius * radius * radius)
+	return position.scaled(factor)
 
-static func elements(position: Vector3, velocity: Vector3) -> Dictionary:
+static func elements(position: DVec3, velocity: DVec3) -> Dictionary:
 	var r: float = position.length()
 	var v2: float = velocity.length_squared()
 	if r < 1.0:
 		return _invalid()
 
-	var h_vec: Vector3 = position.cross(velocity)
+	var h_vec: DVec3 = position.cross(velocity)
 	var h: float = h_vec.length()
 	if h < 0.0001:
 		return _invalid()
 
-	var e_vec: Vector3 = velocity.cross(h_vec) / MU_EARTH - position / r
+	var e_vec: DVec3 = velocity.cross(h_vec).divided(MU_EARTH).sub(position.divided(r))
 	var eccentricity: float = e_vec.length()
 	var energy: float = 0.5 * v2 - MU_EARTH / r
 	var semi_major_axis: float = INF
-	if abs(energy) > 0.000001:
+	if absf(energy) > 0.000001:
 		semi_major_axis = -MU_EARTH / (2.0 * energy)
 
 	var periapsis_radius: float = h * h / (MU_EARTH * (1.0 + eccentricity))
@@ -35,7 +36,7 @@ static func elements(position: Vector3, velocity: Vector3) -> Dictionary:
 
 	var inclination: float = 0.0
 	if h > 0.0:
-		inclination = rad_to_deg(acos(clamp(h_vec.z / h, -1.0, 1.0)))
+		inclination = rad_to_deg(acos(clampf(h_vec.y / h, -1.0, 1.0)))
 
 	var period: float = INF
 	if semi_major_axis > 0.0 and eccentricity < 1.0:
