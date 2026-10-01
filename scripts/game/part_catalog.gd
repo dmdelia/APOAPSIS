@@ -11,6 +11,24 @@ const PARTS: Dictionary = {
 		"radius": 1.6,
 		"drag_coefficient": 0.32
 	},
+	"heatshield": {
+		"name": "Aster Ablative Heatshield",
+		"type": "heatshield",
+		"dry_mass": 520.0,
+		"fuel": 0.0,
+		"height": 0.45,
+		"radius": 1.68,
+		"drag_coefficient": 0.90
+	},
+	"nose_cone": {
+		"name": "NC-16 Nose Cone",
+		"type": "nose",
+		"dry_mass": 110.0,
+		"fuel": 0.0,
+		"height": 2.8,
+		"radius": 1.6,
+		"drag_coefficient": 0.18
+	},
 	"tank_small": {
 		"name": "T-42 Propellant Tank",
 		"type": "tank",
@@ -19,6 +37,15 @@ const PARTS: Dictionary = {
 		"height": 5.8,
 		"radius": 1.65,
 		"drag_coefficient": 0.24
+	},
+	"tank_medium": {
+		"name": "T-66 Propellant Tank",
+		"type": "tank",
+		"dry_mass": 1110.0,
+		"fuel": 8200.0,
+		"height": 7.5,
+		"radius": 1.75,
+		"drag_coefficient": 0.235
 	},
 	"tank_large": {
 		"name": "T-90 Propellant Tank",
@@ -82,13 +109,21 @@ static func get_part(id: String) -> Dictionary:
 		return {}
 	return PARTS[id].duplicate(true)
 
+static func all_ids() -> Array[String]:
+	var result: Array[String] = []
+	for key: Variant in PARTS.keys():
+		result.append(str(key))
+	return result
+
 static func default_stack() -> Array[String]:
 	return [
 		"engine_aquila",
 		"fin",
 		"tank_large",
+		"tank_medium",
 		"decoupler",
 		"engine_orion",
 		"tank_small",
+		"heatshield",
 		"capsule"
 	]
