@@ -238,8 +238,8 @@ func _create_camera() -> void:
 	camera.fov = 52.0
 	camera.near = 0.20
 	camera.far = 8000.0
-	camera.make_current()
 	add_child(camera)
+	camera.make_current()
 
 func _create_ui() -> void:
 	ui_layer = CanvasLayer.new()
@@ -817,8 +817,6 @@ func _launch() -> void:
 	camera_distance = 54.0
 	camera.near = 0.20
 	camera.far = 12000.0
-	camera.near = 0.20
-	camera.far = 12000.0
 	last_event = "PAD READY  |  SPACE IGNITION"
 	_update_environment_for_altitude(0.0)
 
@@ -1116,6 +1114,8 @@ func _exit_map() -> void:
 	if rocket_visual != null:
 		rocket_visual.visible = true
 	camera_distance = 54.0
+	camera.near = 0.20
+	camera.far = 12000.0
 
 func _update_map(delta: float) -> void:
 	if Input.is_action_just_pressed("map_view"):
