@@ -181,6 +181,18 @@ func _create_world() -> void:
 	builder_floor.name = "BuilderFloor"
 	world_root.add_child(builder_floor)
 
+	var studio_ground := MeshInstance3D.new()
+	var studio_ground_mesh := PlaneMesh.new()
+	studio_ground_mesh.size = Vector2(180.0, 180.0)
+	studio_ground.mesh = studio_ground_mesh
+	studio_ground.position.y = -0.01
+	var studio_ground_mat := StandardMaterial3D.new()
+	studio_ground_mat.albedo_color = Color(0.035, 0.045, 0.065)
+	studio_ground_mat.metallic = 0.18
+	studio_ground_mat.roughness = 0.82
+	studio_ground.material_override = studio_ground_mat
+	builder_floor.add_child(studio_ground)
+
 	var floor := MeshInstance3D.new()
 	var floor_mesh := CylinderMesh.new()
 	floor_mesh.top_radius = 12.0
@@ -726,7 +738,7 @@ func _show_builder() -> void:
 	_refresh_builder()
 	camera_yaw = deg_to_rad(38.0)
 	camera_pitch = deg_to_rad(-12.0)
-	camera_distance = 42.0
+	camera_distance = 58.0
 	camera.near = 0.20
 	camera.far = 2500.0
 
@@ -802,6 +814,7 @@ func _launch() -> void:
 		return
 
 	_initialize_simulation()
+	launch_site.position = Vector3.ZERO
 	_rebuild_flight_vehicle()
 
 	mode = GameMode.FLIGHT
