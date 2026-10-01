@@ -819,7 +819,7 @@ func _initialize_simulation() -> void:
 	launch_north_ecef = launch_up_ecef.cross(launch_east_ecef).normalized()
 
 	sim_position = launch_position_ecef
-	var omega := Vector3(0.0, EARTH_ROTATION_RATE, 0.0)
+	var omega: Vector3 = Vector3(0.0, EARTH_ROTATION_RATE, 0.0)
 	sim_velocity = omega.cross(sim_position)
 	attitude = Quaternion.IDENTITY
 	angular_rate = Vector3.ZERO
@@ -928,63 +928,63 @@ func _simulate_step(dt: float) -> void:
 		return
 
 	mission_time += dt
-	var altitude := _current_altitude()
-	var atmosphere := Atmosphere1976.sample(altitude)
-	var pressure := float(atmosphere["pressure"])
-	var density := float(atmosphere["density"])
-	var speed_of_sound := max(float(atmosphere["speed_of_sound"]), 1.0)
+	var altitude: float = _current_altitude()
+	var atmosphere: Dictionary = Atmosphere1976.sample(altitude)
+	var pressure: float = float(atmosphere["pressure"])
+	var density: float = float(atmosphere["density"])
+	var speed_of_sound: float = maxf(float(atmosphere["speed_of_sound"]), 1.0)
 
-	var omega := Vector3(0.0, EARTH_ROTATION_RATE, 0.0)
-	var atmosphere_velocity := omega.cross(sim_position)
-	var relative_air_velocity := sim_velocity - atmosphere_velocity
-	var airspeed := relative_air_velocity.length()
+	var omega: Vector3 = Vector3(0.0, EARTH_ROTATION_RATE, 0.0)
+	var atmosphere_velocity: Vector3 = omega.cross(sim_position)
+	var relative_air_velocity: Vector3 = sim_velocity - atmosphere_velocity
+	var airspeed: float = relative_air_velocity.length()
 
-	var mass := vehicle.total_mass()
-	var gravity := OrbitMath.gravity_acceleration(sim_position)
-	var total_force := gravity * mass
+	var mass: float = vehicle.total_mass()
+	var gravity: Vector3 = OrbitMath.gravity_acceleration(sim_position)
+	var total_force: Vector3 = gravity * mass
 
-	var engine_data := vehicle.consume_and_get_thrust(dt, pressure)
-	var thrust := float(engine_data["thrust"])
+	var engine_data: Dictionary = vehicle.consume_and_get_thrust(dt, pressure)
+	var thrust: float = float(engine_data["thrust"])
 
-	var radial_up := sim_position.normalized()
-	var east := Vector3.UP.cross(radial_up).normalized()
+	var radial_up: Vector3 = sim_position.normalized()
+	var east: Vector3 = Vector3.UP.cross(radial_up).normalized()
 	if east.length_squared() < 0.01:
 		east = launch_east_ecef
-	var north := radial_up.cross(east).normalized()
+	var north: Vector3 = radial_up.cross(east).normalized()
 
-	var pitch_q := Quaternion(east, angular_rate.x * dt)
-	var yaw_q := Quaternion(north, angular_rate.y * dt)
-	var roll_q := Quaternion(radial_up, angular_rate.z * dt)
+	var pitch_q: Quaternion = Quaternion(east, angular_rate.x * dt)
+	var yaw_q: Quaternion = Quaternion(north, angular_rate.y * dt)
+	var roll_q: Quaternion = Quaternion(radial_up, angular_rate.z * dt)
 	attitude = (roll_q * yaw_q * pitch_q * attitude).normalized()
 
-	var thrust_direction := (attitude * radial_up).normalized()
+	var thrust_direction: Vector3 = (attitude * radial_up).normalized()
 	if thrust > 0.0:
 		total_force += thrust_direction * thrust
 		if thrust > mass * gravity.length() * 1.01:
 			has_liftoff = true
 
 	if airspeed > 0.01 and density > 0.0000001:
-		var mach := airspeed / speed_of_sound
-		var cd := Aerodynamics.drag_coefficient(mach, 0.26)
-		var q_dynamic := Aerodynamics.dynamic_pressure(density, airspeed)
-		var drag := q_dynamic * cd * vehicle.reference_area()
+		var mach: float = airspeed / speed_of_sound
+		var cd: float = Aerodynamics.drag_coefficient(mach, 0.26)
+		var q_dynamic: float = Aerodynamics.dynamic_pressure(density, airspeed)
+		var drag: float = q_dynamic * cd * vehicle.reference_area()
 		total_force -= relative_air_velocity.normalized() * drag
 		max_q = max(max_q, q_dynamic)
 		heat_flux_w_m2 = Aerodynamics.convective_heating_w_m2(density, airspeed, 0.75)
 	else:
 		heat_flux_w_m2 = 0.0
 
-	var acceleration := total_force / mass
+	var acceleration: Vector3 = total_force / mass
 	g_load = max(0.0, (acceleration - gravity).length() / 9.80665)
 	sim_velocity += acceleration * dt
 	sim_position += sim_velocity * dt
 
-	var current_radius := sim_position.length()
+	var current_radius: float = sim_position.length()
 	if current_radius < EARTH_RADIUS:
 		sim_position = sim_position.normalized() * EARTH_RADIUS
-		var surface_velocity := omega.cross(sim_position)
-		var impact_velocity := sim_velocity - surface_velocity
-		var impact_speed := impact_velocity.length()
+		var surface_velocity: Vector3 = omega.cross(sim_position)
+		var impact_velocity: Vector3 = sim_velocity - surface_velocity
+		var impact_speed: float = impact_velocity.length()
 
 		if has_liftoff:
 			if impact_speed <= 8.0:
@@ -1001,19 +1001,19 @@ func _update_flight_visuals(delta: float) -> void:
 	if rocket_visual == null:
 		return
 
-	var local_pos := _ecef_to_local(sim_position)
+	var local_pos: Vector3 = _ecef_to_local(sim_position)
 	rocket_visual.position = local_pos + Vector3.UP * 2.9
 
-	var current_up := sim_position.normalized()
-	var physics_longitudinal := (attitude * current_up).normalized()
-	var physics_right := (attitude * launch_east_ecef).normalized()
+	var current_up: Vector3 = sim_position.normalized()
+	var physics_longitudinal: Vector3 = (attitude * current_up).normalized()
+	var physics_right: Vector3 = (attitude * launch_east_ecef).normalized()
 
-	var local_y := _direction_ecef_to_local(physics_longitudinal).normalized()
-	var local_x := _direction_ecef_to_local(physics_right).normalized()
+	var local_y: Vector3 = _direction_ecef_to_local(physics_longitudinal).normalized()
+	var local_x: Vector3 = _direction_ecef_to_local(physics_right).normalized()
 	local_x = (local_x - local_y * local_x.dot(local_y)).normalized()
 	if local_x.length_squared() < 0.01:
 		local_x = Vector3.RIGHT
-	var local_z := local_x.cross(local_y).normalized()
+	var local_z: Vector3 = local_x.cross(local_y).normalized()
 	local_x = local_y.cross(local_z).normalized()
 	rocket_visual.basis = Basis(local_x, local_y, local_z)
 
@@ -1022,27 +1022,27 @@ func _update_flight_visuals(delta: float) -> void:
 		if plume_visual.visible:
 			plume_visual.scale = Vector3(1.0 + vehicle.throttle * 0.10, 0.55 + vehicle.throttle * 1.35, 1.0 + vehicle.throttle * 0.10)
 
-	var vehicle_height := RocketFactory.vehicle_height(part_stack, vehicle.current_stage)
-	var target := rocket_visual.position + local_y * vehicle_height * 0.42
-	var speed := (sim_velocity - Vector3(0.0, EARTH_ROTATION_RATE, 0.0).cross(sim_position)).length()
-	var dynamic_distance := clamp(camera_distance + speed * 0.002, 18.0, 220.0)
-	var offset := _orbit_offset(camera_yaw, camera_pitch, dynamic_distance)
-	var desired := target + offset
+	var vehicle_height: float = RocketFactory.vehicle_height(part_stack, vehicle.current_stage)
+	var target: Vector3 = rocket_visual.position + local_y * vehicle_height * 0.42
+	var speed: float = (sim_velocity - Vector3(0.0, EARTH_ROTATION_RATE, 0.0).cross(sim_position)).length()
+	var dynamic_distance: float = clampf(camera_distance + speed * 0.002, 18.0, 220.0)
+	var offset: Vector3 = _orbit_offset(camera_yaw, camera_pitch, dynamic_distance)
+	var desired: Vector3 = target + offset
 	camera.position = camera.position.lerp(desired, clamp(delta * 4.0, 0.0, 1.0))
 	camera.look_at(target, Vector3.UP)
 
-	var altitude := _current_altitude()
+	var altitude: float = _current_altitude()
 	launch_site.visible = altitude < 50000.0
 	_update_environment_for_altitude(altitude)
 
 func _update_flight_hud() -> void:
-	var altitude := _current_altitude()
-	var radial_speed := sim_velocity.dot(sim_position.normalized())
-	var atmosphere := Atmosphere1976.sample(altitude)
-	var air_velocity := sim_velocity - Vector3(0.0, EARTH_ROTATION_RATE, 0.0).cross(sim_position)
-	var airspeed := air_velocity.length()
-	var mach := airspeed / max(float(atmosphere["speed_of_sound"]), 1.0)
-	var orbit := OrbitMath.elements(sim_position, sim_velocity)
+	var altitude: float = _current_altitude()
+	var radial_speed: float = sim_velocity.dot(sim_position.normalized())
+	var atmosphere: Dictionary = Atmosphere1976.sample(altitude)
+	var air_velocity: Vector3 = sim_velocity - Vector3(0.0, EARTH_ROTATION_RATE, 0.0).cross(sim_position)
+	var airspeed: float = air_velocity.length()
+	var mach: float = airspeed / maxf(float(atmosphere["speed_of_sound"]), 1.0)
+	var orbit: Dictionary = OrbitMath.elements(sim_position, sim_velocity)
 
 	_set_flight_value("ALTITUDE", _format_distance(altitude))
 	_set_flight_value("SPEED", "%0.0f m/s" % airspeed)
@@ -1055,7 +1055,7 @@ func _update_flight_hud() -> void:
 	_set_flight_value("APOAPSIS", _format_distance(float(orbit["apoapsis_m"])))
 	_set_flight_value("PERIAPSIS", _format_distance(float(orbit["periapsis_m"])))
 
-	var status_color := COLOR_DANGER if crashed else (COLOR_GOOD if landed else COLOR_TEXT)
+	var status_color: Color = COLOR_DANGER if crashed else (COLOR_GOOD if landed else COLOR_TEXT)
 	flight_event.modulate = status_color
 	flight_event.text = "%s   |   STAGE %d/%d   |   T+ %s   |   %0.2f g   |   HEAT %0.2f MW/m²" % [
 		last_event,
@@ -1116,7 +1116,7 @@ func _update_map(delta: float) -> void:
 	_update_map_values()
 
 func _update_map_values() -> void:
-	var orbit := OrbitMath.elements(sim_position, sim_velocity)
+	var orbit: Dictionary = OrbitMath.elements(sim_position, sim_velocity)
 	_set_map_value("APOAPSIS", _format_distance(float(orbit["apoapsis_m"])))
 	_set_map_value("PERIAPSIS", _format_distance(float(orbit["periapsis_m"])))
 	_set_map_value("ECCENTRICITY", "%0.5f" % float(orbit["eccentricity"]))
@@ -1129,7 +1129,7 @@ func _update_map_values() -> void:
 	map_vehicle_marker.position = sim_position * scale
 
 func _rebuild_orbit_trajectory() -> void:
-	var orbit := OrbitMath.elements(sim_position, sim_velocity)
+	var orbit: Dictionary = OrbitMath.elements(sim_position, sim_velocity)
 	if not bool(orbit["valid"]) or not is_finite(float(orbit["period_s"])) or float(orbit["period_s"]) <= 0.0:
 		map_trajectory.mesh = null
 		return
@@ -1172,7 +1172,7 @@ func _current_altitude() -> float:
 	return max(0.0, sim_position.length() - EARTH_RADIUS)
 
 func _ecef_to_local(position_ecef: Vector3) -> Vector3:
-	var delta := position_ecef - launch_position_ecef
+	var delta: Vector3 = position_ecef - launch_position_ecef
 	return Vector3(
 		delta.dot(launch_east_ecef),
 		delta.dot(launch_up_ecef),
@@ -1187,7 +1187,7 @@ func _direction_ecef_to_local(direction_ecef: Vector3) -> Vector3:
 	)
 
 func _orbit_offset(yaw: float, pitch: float, distance: float) -> Vector3:
-	var cp := cos(pitch)
+	var cp: float = cos(pitch)
 	return Vector3(
 		sin(yaw) * cp,
 		-sin(pitch),
@@ -1195,7 +1195,7 @@ func _orbit_offset(yaw: float, pitch: float, distance: float) -> Vector3:
 	) * distance
 
 func _update_environment_for_altitude(altitude: float) -> void:
-	var space_mix := clamp((altitude - 18000.0) / 90000.0, 0.0, 1.0)
+	var space_mix: float = clampf((altitude - 18000.0) / 90000.0, 0.0, 1.0)
 	sky_material.sky_top_color = Color(0.025, 0.12, 0.28).lerp(Color(0.001, 0.002, 0.008), space_mix)
 	sky_material.sky_horizon_color = Color(0.42, 0.63, 0.82).lerp(Color(0.012, 0.025, 0.055), space_mix)
 	sky_material.ground_horizon_color = Color(0.30, 0.34, 0.36).lerp(Color(0.005, 0.008, 0.015), space_mix)
