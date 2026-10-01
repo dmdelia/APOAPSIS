@@ -20,6 +20,10 @@ var accumulator: float = 0.0
 var mission_time: float = 0.0
 var last_event: String = "READY"
 var max_q: float = 0.0
+var heat_flux_w_m2: float = 0.0
+var g_load: float = 1.0
+var landed: bool = false
+var crashed: bool = false
 
 var root_visual: Node3D
 var rocket_visual: Node3D
@@ -388,6 +392,10 @@ func _initialize_simulation() -> void:
 	angular_rate = Vector3.ZERO
 	mission_time = 0.0
 	max_q = 0.0
+	heat_flux_w_m2 = 0.0
+	g_load = 1.0
+	landed = false
+	crashed = false
 	accumulator = 0.0
 	vehicle.set_throttle(0.0)
 
@@ -513,7 +521,8 @@ func _simulate_step(dt: float) -> void:
 	var airspeed: float = relative_air_velocity.length()
 
 	var gravity: Vector3 = OrbitMath.gravity_acceleration(sim_position)
-	var force: Vector3 = gravity * vehicle.total_mass()
+	var vehicle_mass: float = vehicle.total_mass()
+	var force: Vector3 = gravity * vehicle_mass
 
 	var engine_data: Dictionary = vehicle.consume_and_get_thrust(dt, pressure)
 	var thrust: float = float(engine_data["thrust"])
@@ -532,21 +541,35 @@ func _simulate_step(dt: float) -> void:
 		force += thrust_direction.normalized() * thrust
 
 	if airspeed > 0.01 and density > 0.0000001:
-		var cd: float = 0.28
-		var drag: float = 0.5 * density * airspeed * airspeed * cd * vehicle.reference_area()
+		var mach: float = airspeed / max(float(atmosphere["speed_of_sound"]), 1.0)
+		var cd: float = Aerodynamics.drag_coefficient(mach, 0.26)
+		var q_dynamic: float = Aerodynamics.dynamic_pressure(density, airspeed)
+		var drag: float = q_dynamic * cd * vehicle.reference_area()
 		force -= relative_air_velocity.normalized() * drag
-		var q_dynamic: float = 0.5 * density * airspeed * airspeed
 		max_q = max(max_q, q_dynamic)
+		heat_flux_w_m2 = Aerodynamics.convective_heating_w_m2(density, airspeed, 0.75)
+	else:
+		heat_flux_w_m2 = 0.0
 
-	var acceleration: Vector3 = force / vehicle.total_mass()
+	var acceleration: Vector3 = force / vehicle_mass
+	g_load = max(0.0, (acceleration - gravity).length() / 9.80665)
 	sim_velocity += acceleration * dt
 	sim_position += sim_velocity * dt
 
 	if sim_position.length() < EARTH_RADIUS:
 		sim_position = sim_position.normalized() * EARTH_RADIUS
-		var radial_velocity: float = sim_velocity.dot(sim_position.normalized())
-		if radial_velocity < 0.0:
-			sim_velocity -= sim_position.normalized() * radial_velocity
+		var surface_velocity: Vector3 = omega.cross(sim_position)
+		var impact_velocity: Vector3 = sim_velocity - surface_velocity
+		var impact_speed: float = impact_velocity.length()
+		if mission_time > 1.0:
+			if impact_speed <= 8.0:
+				landed = true
+				last_event = "TOUCHDOWN %0.1f m/s" % impact_speed
+			else:
+				crashed = true
+				last_event = "VEHICLE LOST %0.1f m/s" % impact_speed
+			vehicle.shutdown()
+		sim_velocity = surface_velocity
 
 func _update_flight_visuals(delta: float) -> void:
 	if rocket_visual == null:
@@ -604,11 +627,13 @@ func _update_flight_hud() -> void:
 	_set_telemetry("T+ ", _format_time(mission_time))
 
 	var event_label: Label = telemetry_labels["event"] as Label
-	event_label.text = "%s   |   STAGE %d/%d   |   MAX Q %0.1f kPa" % [
+	event_label.text = "%s   |   STAGE %d/%d   |   MAX Q %0.1f kPa   |   G %0.2f   |   HEAT %0.2f MW/m2" % [
 		last_event,
 		vehicle.current_stage + 1,
 		vehicle.stage_count(),
-		max_q / 1000.0
+		max_q / 1000.0,
+		g_load,
+		heat_flux_w_m2 / 1000000.0
 	]
 
 func _update_map_view() -> void:
