@@ -32,6 +32,16 @@ jobs:
             exit 1
           fi
 
+      - name: Gameplay flow smoke test
+        run: |
+          set -o pipefail
+          /home/runner/.local/share/godot/godot_executable/Godot_v4.5.1-stable_linux.x86_64             --headless             --path .             --script res://tests/smoke_flow.gd             2>&1 | tee /tmp/apoapsis-flow.log
+          if grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid call|ERROR:" /tmp/apoapsis-flow.log; then
+            echo "Gameplay flow test detected Godot errors."
+            exit 1
+          fi
+          grep -q "APOAPSIS FLOW TEST PASSED" /tmp/apoapsis-flow.log
+
       - name: Upload playable build
         uses: actions/upload-artifact@v4
         with:
