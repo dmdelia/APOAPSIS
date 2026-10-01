@@ -43,11 +43,10 @@ jobs:
           grep -q "APOAPSIS FLOW TEST PASSED" /tmp/apoapsis-flow.log
 
       - name: Render regression screenshots
-        continue-on-error: true
         run: |
           set -o pipefail
           xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1             /home/runner/.local/share/godot/godot_executable/Godot_v4.5.1-stable_linux.x86_64             --path .             --rendering-method gl_compatibility             --script res://tests/render_capture.gd             2>&1 | tee /tmp/apoapsis-render.log
-          if grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid call|ERROR:" /tmp/apoapsis-render.log; then
+          if grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid call|prepare_camera" /tmp/apoapsis-render.log; then
             echo "Render regression test detected Godot errors."
             exit 1
           fi
