@@ -236,8 +236,9 @@ func _create_camera() -> void:
 	camera = Camera3D.new()
 	camera.current = true
 	camera.fov = 52.0
-	camera.near = 0.05
-	camera.far = 40000000.0
+	camera.near = 0.20
+	camera.far = 8000.0
+	camera.make_current()
 	add_child(camera)
 
 func _create_ui() -> void:
@@ -709,6 +710,8 @@ func _show_menu() -> void:
 	camera_yaw = deg_to_rad(38.0)
 	camera_pitch = deg_to_rad(-14.0)
 	camera_distance = 62.0
+	camera.near = 0.20
+	camera.far = 2500.0
 
 func _show_builder() -> void:
 	mode = GameMode.BUILDER
@@ -724,6 +727,8 @@ func _show_builder() -> void:
 	camera_yaw = deg_to_rad(38.0)
 	camera_pitch = deg_to_rad(-12.0)
 	camera_distance = 42.0
+	camera.near = 0.20
+	camera.far = 2500.0
 
 func _quick_launch() -> void:
 	part_stack = PartCatalog.default_stack()
@@ -810,6 +815,10 @@ func _launch() -> void:
 	camera_yaw = deg_to_rad(42.0)
 	camera_pitch = deg_to_rad(-16.0)
 	camera_distance = 54.0
+	camera.near = 0.20
+	camera.far = 12000.0
+	camera.near = 0.20
+	camera.far = 12000.0
 	last_event = "PAD READY  |  SPACE IGNITION"
 	_update_environment_for_altitude(0.0)
 
@@ -1010,15 +1019,19 @@ func _update_flight_visuals(delta: float) -> void:
 	if rocket_visual == null:
 		return
 
-	var local_pos: Vector3 = _ecef_to_local(sim_position)
-	rocket_visual.position = local_pos + Vector3.UP * 2.9
+	var local_pos: Vector3 = _inertial_position_to_launch_local(sim_position)
+	# Floating origin: keep the active vehicle near world origin at all times.
+	# Nearby world geometry moves relative to the vehicle instead of accumulating
+	# large single-precision render coordinates.
+	rocket_visual.position = Vector3(0.0, 2.9, 0.0)
+	launch_site.position = -local_pos
 
 	var current_up: Vector3 = sim_position.normalized().to_vector3()
 	var physics_longitudinal: Vector3 = (attitude * current_up).normalized()
 	var physics_right: Vector3 = (attitude * launch_east_ecef.to_vector3()).normalized()
 
-	var local_y: Vector3 = _direction_ecef_to_local(physics_longitudinal).normalized()
-	var local_x: Vector3 = _direction_ecef_to_local(physics_right).normalized()
+	var local_y: Vector3 = _inertial_direction_to_launch_local(physics_longitudinal).normalized()
+	var local_x: Vector3 = _inertial_direction_to_launch_local(physics_right).normalized()
 	local_x = (local_x - local_y * local_x.dot(local_y)).normalized()
 	if local_x.length_squared() < 0.01:
 		local_x = Vector3.RIGHT
@@ -1089,6 +1102,8 @@ func _enter_map() -> void:
 	camera_distance = 62.0
 	camera_yaw = deg_to_rad(38.0)
 	camera_pitch = deg_to_rad(-22.0)
+	camera.near = 0.20
+	camera.far = 500.0
 	map_refresh_timer = 0.0
 	_rebuild_orbit_trajectory()
 	_update_map_values()
@@ -1182,20 +1197,31 @@ func _set_warp(value: float) -> void:
 func _current_altitude() -> float:
 	return max(0.0, sim_position.length() - EARTH_RADIUS)
 
-func _ecef_to_local(position_ecef: DVec3) -> Vector3:
-	var delta: DVec3 = position_ecef.sub(launch_position_ecef)
+func _inertial_position_to_launch_local(position_inertial: DVec3) -> Vector3:
+	var earth_fixed: DVec3 = _rotate_y_d(position_inertial, -EARTH_ROTATION_RATE * mission_time)
+	var delta: DVec3 = earth_fixed.sub(launch_position_ecef)
 	return Vector3(
 		float(delta.dot(launch_east_ecef)),
 		float(delta.dot(launch_up_ecef)),
 		float(-delta.dot(launch_north_ecef))
 	)
 
-func _direction_ecef_to_local(direction_ecef: Vector3) -> Vector3:
-	var direction_d: DVec3 = DVec3.from_vector3(direction_ecef)
+func _inertial_direction_to_launch_local(direction_inertial: Vector3) -> Vector3:
+	var direction_d: DVec3 = DVec3.from_vector3(direction_inertial)
+	direction_d = _rotate_y_d(direction_d, -EARTH_ROTATION_RATE * mission_time)
 	return Vector3(
 		float(direction_d.dot(launch_east_ecef)),
 		float(direction_d.dot(launch_up_ecef)),
 		float(-direction_d.dot(launch_north_ecef))
+	)
+
+func _rotate_y_d(value: DVec3, angle: float) -> DVec3:
+	var c: float = cos(angle)
+	var si: float = sin(angle)
+	return DVec3.new(
+		value.x * c + value.z * si,
+		value.y,
+		-value.x * si + value.z * c
 	)
 
 func _orbit_offset(yaw: float, pitch: float, distance: float) -> Vector3:
