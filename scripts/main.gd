@@ -83,6 +83,7 @@ var flight_values: Dictionary = {}
 var flight_event: Label
 var flight_warp: Label
 var map_values: Dictionary = {}
+var map_refresh_timer: float = 0.0
 
 func _ready() -> void:
 	_create_environment()
@@ -1001,7 +1002,7 @@ func _update_flight_visuals(delta: float) -> void:
 		return
 
 	var local_pos := _ecef_to_local(sim_position)
-	rocket_visual.position = local_pos
+	rocket_visual.position = local_pos + Vector3.UP * 2.9
 
 	var current_up := sim_position.normalized()
 	var physics_longitudinal := (attitude * current_up).normalized()
@@ -1022,7 +1023,7 @@ func _update_flight_visuals(delta: float) -> void:
 			plume_visual.scale = Vector3(1.0 + vehicle.throttle * 0.10, 0.55 + vehicle.throttle * 1.35, 1.0 + vehicle.throttle * 0.10)
 
 	var vehicle_height := RocketFactory.vehicle_height(part_stack, vehicle.current_stage)
-	var target := local_pos + local_y * vehicle_height * 0.42
+	var target := rocket_visual.position + local_y * vehicle_height * 0.42
 	var speed := (sim_velocity - Vector3(0.0, EARTH_ROTATION_RATE, 0.0).cross(sim_position)).length()
 	var dynamic_distance := clamp(camera_distance + speed * 0.002, 18.0, 220.0)
 	var offset := _orbit_offset(camera_yaw, camera_pitch, dynamic_distance)
@@ -1044,7 +1045,7 @@ func _update_flight_hud() -> void:
 	var orbit := OrbitMath.elements(sim_position, sim_velocity)
 
 	_set_flight_value("ALTITUDE", _format_distance(altitude))
-	_set_flight_value("SPEED", "%0.0f m/s" % sim_velocity.length())
+	_set_flight_value("SPEED", "%0.0f m/s" % airspeed)
 	_set_flight_value("VERTICAL", "%+0.0f m/s" % radial_speed)
 	_set_flight_value("MACH", "%0.2f" % mach)
 	_set_flight_value("MAX Q", "%0.1f kPa" % (max_q / 1000.0))
@@ -1077,6 +1078,7 @@ func _enter_map() -> void:
 	camera_distance = 62.0
 	camera_yaw = deg_to_rad(38.0)
 	camera_pitch = deg_to_rad(-22.0)
+	map_refresh_timer = 0.0
 	_rebuild_orbit_trajectory()
 	_update_map_values()
 
@@ -1089,10 +1091,23 @@ func _exit_map() -> void:
 		rocket_visual.visible = true
 	camera_distance = 54.0
 
-func _update_map(_delta: float) -> void:
+func _update_map(delta: float) -> void:
 	if Input.is_action_just_pressed("map_view"):
 		_exit_map()
 		return
+
+	if not vehicle.engines_armed and _current_altitude() >= 70000.0 and warp_factor > 1.0:
+		physics_accumulator += min(delta, 0.10) * warp_factor
+		var steps: int = 0
+		while physics_accumulator >= PHYSICS_STEP and steps < 2400:
+			_simulate_step(PHYSICS_STEP)
+			physics_accumulator -= PHYSICS_STEP
+			steps += 1
+
+		map_refresh_timer += delta
+		if map_refresh_timer >= 0.25:
+			map_refresh_timer = 0.0
+			_rebuild_orbit_trajectory()
 
 	var target := Vector3.ZERO
 	var offset := _orbit_offset(camera_yaw, camera_pitch, camera_distance)
