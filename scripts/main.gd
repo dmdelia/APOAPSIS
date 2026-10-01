@@ -8,7 +8,7 @@ const LAUNCH_LATITUDE_DEG: float = 28.6084
 const LAUNCH_LONGITUDE_DEG: float = -80.6043
 const FIXED_DT: float = 1.0 / 120.0
 
-var mode: GameMode = GameMode.BUILDER
+var mode: int = GameMode.BUILDER
 var vehicle: VehicleModel = VehicleModel.new()
 var part_stack: Array[String] = []
 
