@@ -347,7 +347,10 @@ func _build_builder_ui() -> Control:
 	var top := ColorRect.new()
 	top.color = Color(0.010, 0.016, 0.026, 0.94)
 	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top.size.y = 76
+	top.offset_left = 0.0
+	top.offset_top = 0.0
+	top.offset_right = 0.0
+	top.offset_bottom = 76.0
 	root.add_child(top)
 
 	var title := Label.new()
@@ -397,8 +400,10 @@ func _build_builder_ui() -> Control:
 
 	var right := PanelContainer.new()
 	right.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	right.position = Vector2(-390, 96)
-	right.size = Vector2(366, 870)
+	right.offset_left = -390.0
+	right.offset_top = 96.0
+	right.offset_right = -24.0
+	right.offset_bottom = -24.0
 	right.add_theme_stylebox_override("panel", _panel_style(COLOR_PANEL, 14.0))
 	root.add_child(right)
 
@@ -504,8 +509,10 @@ func _build_flight_ui() -> Control:
 
 	var bottom := PanelContainer.new()
 	bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	bottom.position = Vector2(24, -188)
-	bottom.size = Vector2(-48, 164)
+	bottom.offset_left = 24.0
+	bottom.offset_top = -188.0
+	bottom.offset_right = -24.0
+	bottom.offset_bottom = -24.0
 	bottom.add_theme_stylebox_override("panel", _panel_style(Color(0.010, 0.016, 0.026, 0.91), 12.0))
 	root.add_child(bottom)
 
@@ -1065,7 +1072,7 @@ func _update_flight_hud() -> void:
 		g_load,
 		heat_flux_w_m2 / 1000000.0
 	]
-	flight_warp.text = "WARP %g×  [1-4]" % warp_factor
+	flight_warp.text = "WARP %.0f×  [1-4]" % warp_factor
 
 func _enter_map() -> void:
 	mode = GameMode.MAP
@@ -1166,7 +1173,7 @@ func _set_warp(value: float) -> void:
 	else:
 		warp_factor = value
 	if flight_warp != null:
-		flight_warp.text = "WARP %g×  [1-4]" % warp_factor
+		flight_warp.text = "WARP %.0f×  [1-4]" % warp_factor
 
 func _current_altitude() -> float:
 	return max(0.0, sim_position.length() - EARTH_RADIUS)
