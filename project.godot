@@ -37,9 +37,33 @@ pitch_right={
 "deadzone": 0.5,
 "events": [Object(InputEventKey,"physical_keycode":68)]
 }
+yaw_left={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":81)]
+}
+yaw_right={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":69)]
+}
+roll_left={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":90)]
+}
+roll_right={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":67)]
+}
 stage={
 "deadzone": 0.5,
 "events": [Object(InputEventKey,"physical_keycode":32)]
+}
+map_view={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":77)]
+}
+shutdown={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":88)]
 }
 reset_flight={
 "deadzone": 0.5,
