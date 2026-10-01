@@ -9,8 +9,6 @@ jobs:
   export-windows:
     name: Export Windows build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
@@ -29,6 +27,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: APOAPSIS-Windows
-          path: build/
+          path: /home/runner/.local/share/godot/archives/*.zip
           if-no-files-found: error
           retention-days: 14
